@@ -18,4 +18,17 @@ public class Product {
     private Long price;
 
     private String category;
+
+    private Integer stock; // 재고 수량
+
+    public void decreaseStock(int quantity) {
+        if (this.stock < quantity) {
+            throw new RuntimeException("Out of stock for product: " + this.id);
+        }
+        this.stock -= quantity;
+    }
+
+    public void restoreStock(int quantity) {
+        this.stock += quantity;
+    }
 }

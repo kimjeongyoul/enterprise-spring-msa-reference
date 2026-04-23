@@ -4,8 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
+import org.springframework.cloud.openfeign.EnableFeignClients;
+
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.global.auth.auth", "com.global.auth.common"})
+@EnableFeignClients(basePackages = "com.global.auth")
 public class AuthApplication {
     public static void main(String[] args) {
         SpringApplication.run(AuthApplication.class, args);

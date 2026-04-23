@@ -1,0 +1,16 @@
+apply plugin: 'java-library'
+
+dependencies {
+    api project(':common-core')
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    api 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+    api 'org.springframework.kafka:spring-kafka'
+    
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+}
+
+jar {
+    enabled = true
+}

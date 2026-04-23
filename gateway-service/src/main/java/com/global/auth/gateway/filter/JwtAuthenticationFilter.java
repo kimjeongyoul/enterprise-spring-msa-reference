@@ -1,14 +1,20 @@
 package com.global.auth.gateway.filter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.global.auth.common.dto.ApiResponse;
+import com.global.auth.gateway.exception.GatewayErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -19,16 +25,20 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
-    private final SecretKey key;
+    private final ObjectMapper objectMapper;
+    private SecretKey key;
     private final List<String> whiteList = List.of("/api/v1/auth/signup", "/api/v1/auth/login");
 
-    public JwtAuthenticationFilter(@Value("${jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    @Value("${jwt.secret}")
+    public void setSecret(String secret) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     @Override
@@ -36,14 +46,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
 
-        if (whiteList.contains(path)) {
-            return chain.filter(exchange);
+        // 1. Correlation ID 설정 (트레이싱 시작)
+        String correlationId = request.getHeaders().getFirst("X-Correlation-ID");
+        if (correlationId == null || correlationId.isEmpty()) {
+            correlationId = UUID.randomUUID().toString().substring(0, 8);
         }
 
-        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        // 2. White List 체크
+        if (whiteList.contains(path)) {
+            ServerHttpRequest mutatedRequest = request.mutate()
+                    .header("X-Correlation-ID", correlationId)
+                    .build();
+            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+        }
 
+        // 3. 인증 체크
+        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return onError(exchange, "Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, GatewayErrorCode.UNAUTHORIZED);
         }
 
         String token = authHeader.substring(7);
@@ -55,11 +75,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            log.info("Authenticated user: {}", claims.getSubject());
-
-            // Add user info to headers for downstream services
+            // 4. 하위 서비스로 전파할 헤더 주입 (Mature MSA 규격)
             ServerHttpRequest mutatedRequest = request.mutate()
-                    .header("X-User-Name", claims.getSubject())
+                    .header("X-Correlation-ID", correlationId)
+                    .header("X-User-ID", claims.getSubject())
                     .header("X-User-Role", claims.get("role", String.class))
                     .build();
 
@@ -67,15 +86,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         } catch (Exception e) {
             log.error("Token validation failed: {}", e.getMessage());
-            return onError(exchange, "Token validation failed", HttpStatus.UNAUTHORIZED);
+            return onError(exchange, GatewayErrorCode.UNAUTHORIZED);
         }
     }
 
-    private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
+    private Mono<Void> onError(ServerWebExchange exchange, GatewayErrorCode errorCode) {
         ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(httpStatus);
-        log.warn(err);
-        return response.setComplete();
+        response.setStatusCode(HttpStatus.valueOf(errorCode.getStatus()));
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json");
+
+        ApiResponse<Void> apiResponse = ApiResponse.error(errorCode, errorCode.getMessageKey());
+        
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(apiResponse);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (JsonProcessingException e) {
+            return response.setComplete();
+        }
     }
 
     @Override

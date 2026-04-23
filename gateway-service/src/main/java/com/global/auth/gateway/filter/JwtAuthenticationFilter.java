@@ -34,7 +34,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final ObjectMapper objectMapper;
     private SecretKey key;
-    private final List<String> whiteList = List.of("/api/v1/auth/signup", "/api/v1/auth/login");
+    private final List<String> whiteList = List.of(
+            "/api/v1/auth/signup", 
+            "/api/v1/auth/login"
+    );
 
     @Value("${jwt.secret}")
     public void setSecret(String secret) {
@@ -53,14 +56,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
 
         // 2. White List 체크
-        if (whiteList.contains(path)) {
+        boolean isWhiteListed = whiteList.stream().anyMatch(path::startsWith);
+        if (isWhiteListed) {
             ServerHttpRequest mutatedRequest = request.mutate()
                     .header("X-Correlation-ID", correlationId)
                     .build();
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
         }
 
-        // 3. 인증 체크
+        // 3. 인증 체크 (화이트리스트가 아닐 때만 실행됨)
         String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return onError(exchange, GatewayErrorCode.UNAUTHORIZED);

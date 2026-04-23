@@ -16,5 +16,8 @@ spring:
 common-service:
   url: http://common-service:8080
 
+payment-service:
+  url: http://payment-service:8080
+
 server:
   port: 8082

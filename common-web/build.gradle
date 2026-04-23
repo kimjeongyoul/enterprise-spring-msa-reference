@@ -6,6 +6,7 @@ dependencies {
     api 'org.springframework.cloud:spring-cloud-starter-openfeign'
     api 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
     api 'org.springframework.kafka:spring-kafka'
+    api 'org.redisson:redisson-spring-boot-starter:3.27.2'
     
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

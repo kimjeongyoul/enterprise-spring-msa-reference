@@ -13,7 +13,12 @@ spring:
   h2:
     console:
       enabled: true
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+common-service:
+  url: http://common-service:8080
 
 jwt:
-  secret: c2VjcmV0LWtleS1mb3Itand0LXRva2VuLWdlbmVyYXRpb24taW4tZ2xvYmFsLWF1dGgtc3lzdGVt
+  secret: globalauthsystemsecretkeyglobalauthsystemsecretkeyglobalauthsystemsecretkey
   expiration: 3600000 # 1 hour

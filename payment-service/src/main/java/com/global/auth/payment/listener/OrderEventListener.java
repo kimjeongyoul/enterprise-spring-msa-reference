@@ -29,12 +29,13 @@ public class OrderEventListener {
             paymentService.processPayment(event.getOrderId(), event.getUserId(), event.getTotalPrice());
             
         } catch (Exception e) {
-            log.error("Payment failed: {}", e.getMessage());
+            log.error("Payment failed, triggering Saga compensation and Rethrowing for Retry/DLQ: {}", e.getMessage());
             
             // [Saga 보상] 결제 실패 시 주문 취소 이벤트 발행
             if (event != null) {
                 publishCompensationEvent(event.getOrderId(), "PAYMENT_FAILED: " + e.getMessage());
             }
+            throw new RuntimeException("Consumer Error: " + e.getMessage(), e);
         }
     }
 

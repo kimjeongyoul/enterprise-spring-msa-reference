@@ -16,8 +16,12 @@ import feign.codec.ErrorDecoder;
 import com.global.auth.common.context.UserContextInterceptor;
 import feign.RequestInterceptor;
 
+import com.global.auth.common.idempotency.IdempotencyManager;
+import com.global.auth.common.idempotency.RedisIdempotencyManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 @AutoConfiguration
-@Import({I18nConfig.class, JacksonConfig.class, ResilienceConfig.class})
+@Import({I18nConfig.class, JacksonConfig.class, ResilienceConfig.class, CommonKafkaConfig.class})
 public class CommonAutoConfiguration {
 
     @Bean
@@ -38,5 +42,10 @@ public class CommonAutoConfiguration {
     @Bean
     public RequestInterceptor userContextInterceptor() {
         return new UserContextInterceptor();
+    }
+
+    @Bean
+    public IdempotencyManager idempotencyManager(StringRedisTemplate redisTemplate) {
+        return new RedisIdempotencyManager(redisTemplate);
     }
 }

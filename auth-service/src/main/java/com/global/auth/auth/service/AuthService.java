@@ -38,11 +38,10 @@ public class AuthService {
     @Transactional
     @SneakyThrows
     public void signup(SignupRequest request) {
-        // [Example] common-service에서 동적으로 사용자 상태 코드를 조회
-        List<CommonCodeResponse> userStatuses = commonCodeClient.getCodesByGroup("USER_STATUS");
-        log.info("Available User Statuses from Common Service: {}", userStatuses);
-        
-        // 실제 운영 환경에서는 'ACTIVE' 같은 코드의 활성화 여부를 여기서 체크 가능
+        // [Simulation] common-service 호출 대신 로그만 남김
+        log.info("Skipping common-service call for testing...");
+        // List<CommonCodeResponse> userStatuses = commonCodeClient.getCodesByGroup("USER_STATUS");
+        // log.info("Available User Statuses from Common Service: {}", userStatuses);
         
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new CustomException(AuthErrorCode.DUPLICATE_USER);

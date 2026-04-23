@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 /**
  * 주문 생성 이벤트를 비동기로 처리하여 재고를 차감하는 소비자
  */
+import com.global.auth.common.idempotency.IdempotencyManager;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -21,25 +23,38 @@ public class OrderEventListener {
     private final ObjectMapper objectMapper;
     private final ProductService productService;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final IdempotencyManager idempotencyManager;
 
     @KafkaListener(topics = "order-events", groupId = "product-group")
     public void handleOrderCreated(String payload) {
         OrderCreatedEvent event = null;
         try {
             event = objectMapper.readValue(payload, OrderCreatedEvent.class);
+            
+            // 멱등성 체크 (고유 키: ORDER_CREATED + orderId)
+            String idempotencyKey = "ORDER_CREATED:" + event.getOrderId();
+            if (idempotencyManager.isProcessed(idempotencyKey)) {
+                log.warn("Duplicate message detected and skipped: {}", idempotencyKey);
+                return;
+            }
+
             log.info(">>>> Async Stock Reduction Started for Order ID: {} - Product: {}", 
                     event.getOrderId(), event.getProductId());
             
-            // 실제 재고 차감 (productId는 현재 String이므로 변환 필요)
+            // 실제 재고 차감
             productService.decreaseStock(Long.parseLong(event.getProductId()), event.getQuantity());
             
-        } catch (Exception e) {
-            log.error("Failed to decrease stock: {}", e.getMessage());
+            // 처리 완료 마킹
+            idempotencyManager.markAsProcessed(idempotencyKey);
             
-            // [Saga 패턴] 재고 차감 실패 시, 보상 트랜잭션(주문 취소) 시작
+        } catch (Exception e) {
+            log.error("Failed to decrease stock, triggering Saga compensation and Rethrowing for Retry/DLQ: {}", e.getMessage());
+            
             if (event != null) {
                 publishCompensationEvent(event.getOrderId(), event.getProductId(), "OUT_OF_STOCK: " + e.getMessage());
             }
+            // 예외를 다시 던져서 Kafka ErrorHandler가 감지하게 함
+            throw new RuntimeException("Consumer Error: " + e.getMessage(), e);
         }
     }
 

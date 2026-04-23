@@ -33,28 +33,50 @@ root/
 └── settings.gradle         # 모듈 통합 관리 설정
 ```
 
-## ⚙️ Getting Started
+## ⚙️ Getting Started & Verification
 
-### Prerequisites
-- Java 17 이상
-- Gradle 8.x 이상
+본 프로젝트는 IntelliJ IDEA와 Postman을 활용하여 가장 쉽게 테스트해 볼 수 있습니다.
 
-### Local Development
-```bash
-# 전체 프로젝트 빌드
-./gradlew build
+### 1. IDE에서 실행하기 (IntelliJ 권장)
+1. **프로젝트 열기**: `File > Open` 메뉴에서 본 프로젝트 폴더를 선택합니다.
+2. **Gradle 로드**: 우측 하단의 Gradle 빌드가 완료될 때까지 기다립니다.
+3. **서비스 실행 (순서 필수)**:
+   - **Step 1**: `auth-service` 모듈의 `AuthApplication.java` 실행 (8081 포트)
+   - **Step 2**: `gateway-service` 모듈의 `GatewayApplication.java` 실행 (8080 포트)
+   - *주의: 내부적으로 H2 인메모리 DB를 사용하므로 별도의 DB 설치 없이 즉시 실행 가능합니다.*
 
-# 특정 서비스 실행 (Auth)
-./gradlew :auth-service:bootRun
-```
+### 2. Postman으로 기능 검증하기
+모든 요청은 개별 서비스(8081)가 아닌 **게이트웨이(8080)**를 통해 전달되어야 합니다.
 
-### Deployment (Kubernetes)
-각 서비스는 개별적으로 컨테이너화되어 K8s 클러스터에 배포될 수 있도록 설계되었습니다.
-```bash
-# Auth Service 배포 예시
-kubectl apply -f auth-service/k8s/config.yaml
-kubectl apply -f auth-service/k8s/deployment.yaml
-```
+#### ✅ 시나리오 1: 회원가입 (Signup)
+- **Method**: `POST`
+- **URL**: `http://localhost:8080/api/v1/auth/signup`
+- **Body (JSON)**:
+  ```json
+  {
+    "username": "tester",
+    "password": "password123",
+    "email": "tester@example.com"
+  }
+  ```
+
+#### ✅ 시나리오 2: 로그인 및 토큰 발급 (Login)
+- **Method**: `POST`
+- **URL**: `http://localhost:8080/api/v1/auth/login`
+- **Body (JSON)**:
+  ```json
+  {
+    "username": "tester",
+    "password": "password123"
+  }
+  ```
+- **기대 결과**: 응답 바디에 `accessToken`과 `refreshToken`이 포함되어 반환됩니다.
+
+### 3. 잘 동작하는지 무엇을 확인해야 하나요? (Checkpoints)
+- **중앙 집중형 라우팅**: 8080 포트로 요청을 보냈을 때, 내부적으로 8081 포트의 인증 서버가 응답하는지 확인합니다.
+- **통합 인증 필터**: `gateway-service` 로그에서 `JwtAuthenticationFilter`가 동작하여 화이트리스트(signup, login)를 체크하고 통과시키는지 확인합니다.
+- **Stateless 보안**: 발행된 JWT 토큰을 복사하여 다른 API 요청 시 `Authorization: Bearer {token}` 헤더에 담아 보냈을 때 게이트웨이에서 정상 인증되는지 확인합니다.
+
 
 ## 🛡 Engineering Standard
 본 프로젝트는 엄격한 엔지니어링 표준을 준수합니다. 상세 내용은 [specs/engineering.md](./specs/engineering.md)을 참조하세요.

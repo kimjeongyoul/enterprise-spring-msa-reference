@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.global.auth.auth.domain.OutboxEvent;
 import com.global.auth.auth.domain.OutboxStatus;
 import com.global.auth.auth.repository.OutboxRepository;
+import com.global.auth.common.event.MessagePublisher;
 import com.global.auth.common.event.NotificationEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,7 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OutboxScheduler {
     private final OutboxRepository outboxRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final MessagePublisher messagePublisher; // 인터페이스로 추상화
     private final ObjectMapper objectMapper;
 
     /**
@@ -43,8 +43,8 @@ public class OutboxScheduler {
                 // 1. JSON 페이로드를 다시 객체로 변환
                 NotificationEvent notification = objectMapper.readValue(event.getPayload(), NotificationEvent.class);
                 
-                // 2. 이벤트 발행 (메시지 브로커로 던지는 것을 시뮬레이션)
-                eventPublisher.publishEvent(notification);
+                // 2. 이벤트 발행 (인터페이스 호출 - 구현체는 Profile에 따라 자동 선택됨)
+                messagePublisher.publish(notification);
                 
                 // 3. 완료 처리
                 event.markAsProcessed();

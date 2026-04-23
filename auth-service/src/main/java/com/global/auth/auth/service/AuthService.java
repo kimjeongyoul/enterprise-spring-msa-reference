@@ -8,7 +8,9 @@ import com.global.auth.auth.repository.UserRepository;
 import com.global.auth.auth.util.JwtTokenProvider;
 import com.global.auth.common.exception.CustomException;
 import com.global.auth.common.exception.ErrorCode;
+import com.global.auth.common.event.NotificationEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void signup(SignupRequest request) {
@@ -34,6 +37,14 @@ public class AuthService {
                 .build();
 
         userRepository.save(user);
+
+        // 알림 이벤트 발행
+        eventPublisher.publishEvent(NotificationEvent.builder()
+                .receiver(request.getEmail())
+                .title("Welcome!")
+                .content("User " + request.getUsername() + " signed up.")
+                .type("EMAIL")
+                .build());
     }
 
     @Transactional(readOnly = true)

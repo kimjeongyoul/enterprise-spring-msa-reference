@@ -1,5 +1,6 @@
 package com.global.auth.order.domain;
 
+import com.global.auth.common.domain.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,8 +20,13 @@ public class Order {
     private String userId; // Gateway에서 넘겨준 username 저장용
 
     private String productId;
+    
+    private String productName; // 주문 시점의 상품명 스냅샷
 
     private Integer quantity;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status; // 공통 코드 사용
 
     private LocalDateTime createdAt;
 

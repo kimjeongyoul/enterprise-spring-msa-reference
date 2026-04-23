@@ -8,32 +8,47 @@
 - 주요 기술적 결정은 [ADR(Architecture Decision Records)](./specs/decisions/)을 통해 관리됩니다.
 - 20인 이상의 개발자가 커뮤니케이션 비용 없이 협업할 수 있는 **Modular Monorepo** 구조를 지향합니다.
 
-## 🏗 System Architecture
+## 🏗 System Architecture Roadmap
+
+본 프로젝트는 서비스의 성장 단계에 따른 단계별 아키텍처 진화 로드맵을 지향합니다.
+
+### 📍 Phase 1: Current Architecture (As-Is)
+현재 시스템은 **API Gateway를 통한 API Composition** 방식을 채택하여 빠른 개발 속도와 단순한 운영 구조를 유지하고 있습니다.
 
 ```mermaid
 graph TD
-    Client[Client / Postman] -->|Request with JWT| Gateway[API Gateway :8080]
-    Gateway -->|1. Validate JWT| Auth[Auth Service :8081]
-    Gateway -->|2. Route with X-User-Name| Order[Order Service :8082]
+    Client[Client] -->|Request| Gateway[API Gateway]
+    Gateway -->|1. Auth Check| Auth[Auth Service]
+    Gateway -->|2. Business Request| Order[Order Service]
     
-    subgraph "Infrastructure"
-        Auth --- MySQL1[(Auth DB)]
-        Auth --- Redis[(Redis / Rate Limit)]
-        Order --- MySQL2[(Order DB)]
-    end
-    
-    subgraph "Core Logic"
-        Auth -.->|Issue Token| Client
-        Order -.->|Business Process| Client
+    subgraph "Direct DB Access"
+        Auth --- AuthDB[(Auth DB)]
+        Order --- OrderDB[(Order DB)]
     end
 ```
+- **장점**: 단순한 구조, 강력한 데이터 정합성(ACID), 빠른 초기 개발.
+- **단점**: 서비스 간 의존성 존재, 복잡한 통합 조회 시 성능 저하 우려.
 
-시스템은 마이크로서비스 아키텍처(MSA)로 설계되었으며, 모든 외부 요청은 Gateway를 통해 중앙 집중식으로 제어됩니다.
+### 📍 Phase 2: Future Roadmap (To-Be)
+트래픽 및 검색 요구사항이 복잡해지는 시점에는 **Event-Driven CQRS** 패턴으로 전환하여 조회 성능을 극대화할 예정입니다. ([ADR 008](./specs/decisions/008-cqrs-roadmap.md) 참조)
 
-- **Gateway Service (8080)**: Spring Cloud Gateway 기반의 진입점. 모든 요청에 대한 인증 필터링, 속도 제한(Rate Limiting) 및 라우팅 수행.
-- **Auth Service (8081)**: JWT 기반 사용자 인증, 권한 관리 및 토큰 발행 전담.
-- **Order Service (8082)**: 일반 유저 전용 주문 서비스. Gateway에서 전달된 사용자 정보를 기반으로 **'본인의 데이터'만 조회/생성** 가능한 보안 로직 포함.
-- **Common Lib**: 전사 표준 응답 객체 및 에러 핸들링 로직을 공유하는 공통 모듈.
+```mermaid
+graph TD
+    Client[Client] -->|Write Request| Gateway[API Gateway]
+    Gateway --> Auth[Auth Service]
+    Gateway --> Order[Order Service]
+    
+    Auth -->|User Event| Kafka[Message Broker / Kafka]
+    Order -->|Order Event| Kafka
+    
+    Kafka --> Sync[Search-Sync Consumer]
+    Sync -->|Read Model Update| ES[(Elasticsearch / Read DB)]
+    
+    Client -->|Search Request| Gateway
+    Gateway -->|High Speed Query| ES
+```
+- **전환 시점**: 통합 조회 API의 응답 속도가 임계치를 넘거나, 복잡한 다차원 검색이 필요할 때.
+- **핵심 전략**: 쓰기 작업은 RDB에서, 읽기 작업은 비정규화된 문서DB(ES)에서 처리하여 성능 최적화.
 
 ## 🛠 Tech Stack
 - **Framework**: Java 17, Spring Boot 3.2.4

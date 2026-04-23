@@ -1,16 +1,15 @@
 package com.global.auth.auth.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.global.auth.auth.domain.OutboxEvent;
 import com.global.auth.auth.domain.User;
-import com.global.auth.auth.dto.LoginRequest;
-import com.global.auth.auth.dto.SignupRequest;
-import com.global.auth.auth.dto.TokenResponse;
+import com.global.auth.auth.repository.OutboxRepository;
 import com.global.auth.auth.repository.UserRepository;
-import com.global.auth.auth.util.JwtTokenProvider;
+import com.global.auth.common.event.NotificationEvent;
 import com.global.auth.common.exception.CustomException;
 import com.global.auth.common.exception.ErrorCode;
-import com.global.auth.common.event.NotificationEvent;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
+import lombok.SneakyThrows;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,31 +19,40 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
+    @SneakyThrows
     public void signup(SignupRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new CustomException(ErrorCode.DUPLICATE_USER);
         }
 
+        // 1. 비즈니스 데이터 저장
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
                 .role("ROLE_USER")
                 .build();
-
         userRepository.save(user);
 
-        // 알림 이벤트 발행
-        eventPublisher.publishEvent(NotificationEvent.builder()
+        // 2. 아웃박스에 이벤트 저장 (동일 트랜잭션)
+        NotificationEvent notification = NotificationEvent.builder()
                 .receiver(request.getEmail())
                 .title("Welcome!")
                 .content("User " + request.getUsername() + " signed up.")
                 .type("EMAIL")
-                .build());
+                .build();
+
+        OutboxEvent outboxEvent = OutboxEvent.builder()
+                .aggregateType("USER")
+                .eventType("SIGNUP_SUCCESS")
+                .payload(objectMapper.writeValueAsString(notification))
+                .build();
+
+        outboxRepository.save(outboxEvent);
     }
 
     @Transactional(readOnly = true)

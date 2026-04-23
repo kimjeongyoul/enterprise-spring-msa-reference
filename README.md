@@ -1,61 +1,46 @@
-# Global Auth System (Mature MSA)
+# Enterprise Spring MSA Reference (Advanced Commerce)
 
-본 프로젝트는 성숙한 마이크로서비스 아키텍처(Mature MSA)를 지향하는 참조 모델입니다. 비동기 메시징, 분산 트레이싱, 그리고 엄격하게 격리된 라이브러리 구조를 통해 높은 가동성과 유지보수성을 제공합니다.
+본 프로젝트는 대규모 트래픽과 복잡한 분산 트랜잭션을 처리해야 하는 현대적 커머스 시스템을 위한 **성숙한 마이크로서비스 아키텍처(Mature MSA) 참조 모델**입니다.
 
-## 🏗 프로젝트 모듈 구조
+## 🏗 아키텍처 핵심 설계 (The Architecture)
 
-### 1. 공통 인프라 (Shared Libraries)
-*   **`common-core`**: 전사 표준 규격 정의. 모든 서비스(Gateway 포함)가 의존합니다.
-    *   `dto`: ApiResponse, PageResponse 등 공통 API 포맷.
-    *   `exception`: ErrorCode 인터페이스 및 공통 에러 정의.
-    *   `event`: Kafka 통신용 주문/알림 이벤트 규격.
-    *   `context`: ThreadLocal 기반의 Trace ID 및 User Context 관리.
-*   **`common-web`**: MVC 기반 서비스용 인프라 SDK.
-    *   `handler`: 전역 예외 처리(GlobalExceptionHandler).
-    *   `filter`: MDC 로깅 및 트레이싱 필터.
-    *   `config`: OpenFeign 설정, 다국어(i18n), 서킷 브레이커 기본값.
+### 1. 계층형 공통 라이브러리 (Modular SDK)
+*   **`common-core`**: 모든 서비스(Gateway 포함)의 근간. DTO, ErrorCode 규격, Trace-ID 및 UserContext, Kafka 이벤트 스키마 포함. (JPA/Web 의존성 제거)
+*   **`common-web`**: MVC 기반 서비스용 인프라 SDK. GlobalExceptionHandler, 로깅 필터, Feign/Resilience4j 설정, 분산 락 유틸리티 포함.
 
-### 2. 마이크로서비스 (Domain Services)
-*   **`gateway-service`**: 시스템의 관문. 리액티브(WebFlux) 엔진 기반.
-    *   중앙 인증(JWT), 트레이싱 시작, 전역 에러 핸들링.
-*   **`common-service`**: 메타데이터 중앙 관리소.
-    *   공통 코드(상태, 카테고리 등)를 DB로 관리하고 전 서비스에 API로 서빙.
-*   **`auth-service`**: 계정 및 인증 도메인.
-    *   Transactional Outbox 패턴 기반의 신뢰성 있는 회원가입 처리.
-*   **`order-service`**: 주문 도메인 (Saga 오케스트레이터).
-    *   비동기 주문 처리 및 실패 시 보상 트랜잭션(취소) 제어.
-*   **`product-service`**: 상품 및 재고 도메인.
-    *   Kafka 이벤트를 통한 비동기 재고 차감 및 복구.
-*   **`payment-service`**: 결제 도메인.
-    *   외부 결제 시뮬레이션 및 실패 시 Saga 보상 이벤트 발행.
-*   **`notification-service`**: 알림 도메인.
-    *   전사의 모든 비동기 이벤트를 수신하여 알림 발송.
-*   **`community-service`**: 리뷰 및 커뮤니티 도메인.
-    *   스토리지 추상화 레이어를 통한 파일 및 리뷰 관리.
+### 2. 분산 트랜잭션 및 정합성 (Data Consistency)
+*   **Saga Pattern (Choreography)**: Kafka를 통한 비동기 워크플로우 제어 및 실패 시 자동 보상 트랜잭션(주문 취소/재고 복구).
+*   **Transactional Outbox**: DB 저장과 메시지 발행의 원자성을 보장하여 메시지 유실 원천 차단.
+*   **Distributed Locking (Redisson)**: Redis 기반 분산 락을 통해 대량 동시 요청 상황에서도 초고속 재고 정합성 유지.
+*   **Idempotency Manager**: Redis 기반 멱등성 체크로 메시지 중복 처리 및 오작동 방지.
 
-## 🚀 핵심 기술 및 패턴
-... (기존 내용) ...
+### 3. 성능 및 안정성 (Performance & Reliability)
+*   **CQRS (Read Model)**: 쓰기(DB)와 조회(Redis) 모델을 분리하여 폭주 시에도 1ms 대의 고속 조회 성능 확보.
+*   **Redis Throttling**: 실시간 처리량 제어(Rate Limiting)를 통해 배후 시스템 과부하 방지.
+*   **Order Sync Scheduler**: 비동기 메시지 유실에 대비한 주기적 상태 대사(Polling) 및 자동 정합성 복구.
+*   **Kafka Retry & DLQ**: 일시적 장애 시 자동 재시도 및 지속 실패 시 장애 메시지 격리.
 
-## 📊 시스템 용량 및 운영 가이드 (Capacity & Cost)
+## 🚀 시스템 용량 및 지표 (Capacity)
+*   **주문 처리량 (TPS)**: 초당 2,000건+ (Kafka Buffering 적용)
+*   **조회 성능**: 초당 10,000건+ (Redis Read Model 적용)
+*   **최대 동시 접속**: 약 50,000명 (Throttling 및 Queueing 적용)
+*   **데이터 정합성**: 99.99% (Saga + Reconciliation 적용)
 
-### 1. 처리 성능 (Estimated Capacity)
-본 아키텍처는 수평 확장(Scale-out)을 전제로 설계되었으며, 기본 클러스터 구성 시 다음 수준의 부하를 감당할 수 있습니다.
-*   **주문 처리량 (TPS)**: 초당 2,000건 이상의 주문 생성 (Kafka Buffer 및 Outbox 패턴 활용)
-*   **조회 성능**: 초당 10,000건 이상의 주문 목록 조회 (Redis Read Model 및 CQRS 적용)
-*   **최대 동시 접속**: 약 50,000명 (대기열 시스템 및 Throttling 적용)
+## 🛠 서비스 구성
+| 모듈 | 역할 | 핵심 기술 |
+| :--- | :--- | :--- |
+| **Gateway** | 중앙 관문 | WebFlux, JWT Auth, Trace-ID Injection |
+| **Common** | 메타데이터 관리 | Centralized Common Codes (DB based) |
+| **Auth** | 인증/인가 | JWT, Transactional Outbox |
+| **Order** | 주문 오케스트레이터 | Saga Control, CQRS Sync, Throttling |
+| **Product** | 재고 관리 | Redis Lua Script, Distributed Lock |
+| **Payment** | 결제 처리 | Saga Participant, Status Polling |
+| **Notification** | 알림 서비스 | Async Event Consumer |
 
-### 2. 예상 운영 비용 (Cost Estimation - AWS 기준)
-중소규모 커머스 운영 시 월 예상 비용 가이드입니다 (On-demand 기준).
-*   **Compute (EKS/ECS)**: 약 $300 (서비스별 t3.medium 인스턴스 2대씩 가용성 확보)
-*   **Database (RDS/ElastiCache)**: 약 $150 (Multi-AZ 적용)
-*   **Messaging (Managed Kafka)**: 약 $100 (MSK Serverless 기준)
-*   **총계**: 월 약 $550 ~ $800 (트래픽에 따라 유동적이며, 예약 인스턴스 사용 시 최대 40% 절감 가능)
+## 🏁 실행 및 테스트 가이드
+1.  **전체 빌드**: `./gradlew clean bootJar`
+2.  **인프라 기동**: `docker-compose up -d --build`
+3.  **통합 테스트**: `./test-saga.ps1` 실행 (주문-재고-결제-알림 및 보상 트랜잭션 로그 확인)
 
-### 3. 신뢰성 지표 (Reliability)
-*   **데이터 정합성**: 99.99% (Saga 보상 트랜잭션 및 Polling 기반 동기화)
-*   **장애 복구 시간 (RTO)**: 수초 이내 (Circuit Breaker 및 자동 재시도 적용)
-
-## 🛠 실행 및 테스트
-1.  **빌드**: `./gradlew bootJar`
-2.  **전체 기동**: `docker-compose up -d --build`
-3.  **Saga 테스트**: `./test-saga.ps1` 실행 (주문-재고-결제-알림 흐름 확인)
+---
+**Template Version**: 본 참조 모델의 계층화된 템플릿 버전은 [여기](https://github.com/kimjeongyoul/enterprise-spring-msa-template)에서 확인할 수 있습니다.

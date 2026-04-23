@@ -13,21 +13,25 @@
 본 프로젝트는 서비스의 성장 단계에 따른 단계별 아키텍처 진화 로드맵을 지향합니다.
 
 ### 📍 Phase 1: Current Architecture (As-Is)
-현재 시스템은 **API Gateway를 통한 API Composition** 방식을 채택하여 빠른 개발 속도와 단순한 운영 구조를 유지하고 있습니다.
+현재 시스템은 **API Gateway를 통한 API Composition** 방식을 채택하고 있으며, 상품과 지점(Branch) 정보를 관리하는 **Product Service**가 추가되었습니다.
 
 ```mermaid
 graph TD
     Client[Client] -->|Request| Gateway[API Gateway]
     Gateway -->|1. Auth Check| Auth[Auth Service]
-    Gateway -->|2. Business Request| Order[Order Service]
+    Gateway -->|2. Create Order| Order[Order Service]
+    Gateway -->|3. Search Products| Product[Product Service]
     
-    subgraph "Direct DB Access"
+    Order -->|Fetch Info / Stock| Product
+    
+    subgraph "Domain Databases"
         Auth --- AuthDB[(Auth DB)]
         Order --- OrderDB[(Order DB)]
+        Product --- ProductDB[(Product/Branch DB)]
     end
 ```
-- **장점**: 단순한 구조, 강력한 데이터 정합성(ACID), 빠른 초기 개발.
-- **단점**: 서비스 간 의존성 존재, 복잡한 통합 조회 시 성능 저하 우려.
+- **Product Service (8083)**: 상품 기본 정보, **지점(Branch)** 정보 및 지점별 재고(Stock)를 통합 관리.
+- **Service-to-Service (S2S)**: `Order` 서비스가 주문 시 `Product` 서비스에 재고를 물어보는 실전 MSA 통신 패턴 적용.
 
 ### 📍 Phase 2: Future Roadmap (To-Be)
 트래픽 및 검색 요구사항이 복잡해지는 시점에는 **Event-Driven CQRS** 패턴으로 전환하여 조회 성능을 극대화할 예정입니다. ([ADR 008](./specs/decisions/008-cqrs-roadmap.md) 참조)

@@ -61,21 +61,30 @@ root/
   ```
 
 #### ✅ 시나리오 2: 로그인 및 토큰 발급 (Login)
-- **Method**: `POST`
-- **URL**: `http://localhost:8080/api/v1/auth/login`
-- **Body (JSON)**:
-  ```json
-  {
-    "username": "tester",
-    "password": "password123"
-  }
-  ```
-- **기대 결과**: 응답 바디에 `accessToken`과 `refreshToken`이 포함되어 반환됩니다.
+... (기존 내용) ...
+
+#### ✅ 시나리오 3: 주문 생성 및 조회 (Order - New!)
+1. **주문 생성**: `POST http://localhost:8080/api/v1/orders`
+   - **Header**: `Authorization: Bearer {accessToken}`
+   - **Body**: `{"productId": "laptop-001", "quantity": 1}`
+2. **내 주문 조회**: `GET http://localhost:8080/api/v1/orders`
+   - **Header**: `Authorization: Bearer {accessToken}`
+   - **기대 결과**: 내가 방금 주문한 내역만 리스트로 반환됩니다.
 
 ### 3. 잘 동작하는지 무엇을 확인해야 하나요? (Checkpoints)
 - **중앙 집중형 라우팅**: 8080 포트로 요청을 보냈을 때, 내부적으로 8081 포트의 인증 서버가 응답하는지 확인합니다.
 - **통합 인증 필터**: `gateway-service` 로그에서 `JwtAuthenticationFilter`가 동작하여 화이트리스트(signup, login)를 체크하고 통과시키는지 확인합니다.
 - **Stateless 보안**: 발행된 JWT 토큰을 복사하여 다른 API 요청 시 `Authorization: Bearer {token}` 헤더에 담아 보냈을 때 게이트웨이에서 정상 인증되는지 확인합니다.
+
+
+## 🛡 Engineering Standard
+본 프로젝트는 엄격한 엔지니어링 표준을 준수합니다. 상세 내용은 [specs/engineering.md](./specs/engineering.md)을 참조하세요.
+- **Commit Convention**: `feat(scope): spec-id - description`
+- **Definition of Done (DOD)**: 빌드/테스트 성공 및 명세 일치 확인 필수.
+
+---
+[AI Context: Normal | Snap: OK]
+T 토큰을 복사하여 다른 API 요청 시 `Authorization: Bearer {token}` 헤더에 담아 보냈을 때 게이트웨이에서 정상 인증되는지 확인합니다.
 
 
 ## 🛡 Engineering Standard

@@ -1,0 +1,6 @@
+rootProject.name = 'global-auth-system'
+
+// 서비스 모듈 및 공통 라이브러리 등록
+include 'auth-service'
+include 'gateway-service'
+include 'common-lib'

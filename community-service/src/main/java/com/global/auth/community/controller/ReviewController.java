@@ -1,6 +1,7 @@
 package com.global.auth.community.controller;
 
 import com.global.auth.common.dto.ApiResponse;
+import com.global.auth.common.dto.PageResponse;
 import com.global.auth.community.domain.Review;
 import com.global.auth.community.repository.ReviewRepository;
 import com.global.auth.community.service.StorageService;
@@ -29,7 +30,7 @@ public class ReviewController {
             @RequestParam("content") String content,
             @RequestParam("rating") Integer rating,
             @RequestPart(value = "files", required = false) List<MultipartFile> files) {
-        // ... (기존 로직 유지)
+        
         List<String> imageUrls = List.of();
         if (files != null) {
             imageUrls = files.stream()
@@ -49,13 +50,14 @@ public class ReviewController {
     }
 
     /**
-     * 특정 상품의 리뷰 목록 페이징 조회 (ADR 014)
+     * 특정 상품의 리뷰 목록 페이징 조회 (전사 표준 규격 적용)
      */
     @GetMapping("/product/{productId}")
-    public ApiResponse<Page<Review>> getReviewsByProduct(
+    public ApiResponse<PageResponse<Review>> getReviewsByProduct(
             @PathVariable Long productId,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         
-        return ApiResponse.success(reviewRepository.findByProductId(productId, pageable));
+        Page<Review> reviewPage = reviewRepository.findByProductId(productId, pageable);
+        return ApiResponse.success(PageResponse.of(reviewPage));
     }
 }
